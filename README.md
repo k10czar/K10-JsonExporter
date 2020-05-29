@@ -14,4 +14,4 @@ Used on [**Relic Hunters Legend**](https://www.relichunters.com.br)
 
 #### The add the DOTS Lib submodule
 
-``git submodule add https://github.com/k10czar/K10JsonExporter.git "Assets/Plugins/K10JsonExporter"``
+``git submodule add https://github.com/k10czar/K10-JsonExporter.git "Assets/Plugins/K10-JsonExporter"``
