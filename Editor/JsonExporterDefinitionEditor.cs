@@ -209,8 +209,11 @@ public class JsonExporterDefinitionEditor : Editor
 			{
 				_state = EExportStep.Fail;
 				if( www.isNetworkError || www.isHttpError )
-				{					
-					Debug.Log( $"!!Error!! {( www.isNetworkError ? "isNetworkError " : "" )}{( www.isHttpError ? "isHttpError" : "" )}\n{www.error}" );
+				{
+					var error = $"{( www.isNetworkError ? "isNetworkError " : "" )}{( www.isHttpError ? "isHttpError" : "" )}({www.error})";
+					Debug.Log( "!!Error!! " + error );
+					_errorMessage = error;
+					_errorCode = www.error;
 				}
 				else
 				{
