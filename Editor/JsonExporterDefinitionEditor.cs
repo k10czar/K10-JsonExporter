@@ -237,7 +237,7 @@ public class JsonExporterDefinitionEditor : Editor
 						else
 						{
 							var hasResponse = jo.TryGetValue( "response", out var response );
-							var hasData = jo.TryGetValue( "data", out var dataBack );
+							var hasData = jo.TryGetValue( "newData", out var dataBack );
 							if( hasResponse ) _state = EExportStep.Succeeded;
 							Debug.Log( $"Succeeded! {hasResponse} \n{response.ToStringOrNull().FormatAsJson( "    " )}" );
 							Debug.Log( $"hasData? {hasData} \n{dataBack.ToStringOrNull().FormatAsJson( "    " )}" );
