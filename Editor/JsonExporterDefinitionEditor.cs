@@ -188,6 +188,16 @@ public class JsonExporterDefinitionEditor : Editor
 			_state = state;
 		}
 
+		public class BypassCertificate : CertificateHandler
+		{
+			protected override bool ValidateCertificate( byte[] certificateData )
+			{
+				// var certificateDebug = string.Join( "|", certificateData.ToList().ConvertAll( ( b ) => b.ToString() ) );
+				// Debug.Log( "Certificate: " + certificateDebug );
+				return true;
+			}
+		}
+
 		public void Trigger( string url, string data, IEventTrigger onComplete, string authorName )
 		{
 			_errorMessage = null;
@@ -195,14 +205,15 @@ public class JsonExporterDefinitionEditor : Editor
 			WWWForm form = new WWWForm();
 			var realData = data;
 			form.AddField( "updateTable", realData );
-			if( authorName != null ) form.AddField( "author", authorName );
-			var source = SystemInfo.deviceName;
-			form.AddField( "source", source );
+			if( !string.IsNullOrEmpty( authorName ) ) form.AddField( "author", authorName );
+			form.AddField( "source", SystemInfo.deviceName );
 
 			Debug.Log( $"Post to {url}\nwith data:\n{realData.FormatAsJson( "    " )}" );
 			realData.FormatAsJson().LogToJsonFile( "export", _name );
 
 			UnityWebRequest www = UnityWebRequest.Post( url, form );
+			www.certificateHandler = new BypassCertificate();
+
 			_asyncOp = www.SendWebRequest();
 			_state = EExportStep.Sent;
 			_asyncOp.completed += ( aOp ) =>
@@ -210,8 +221,12 @@ public class JsonExporterDefinitionEditor : Editor
 				_state = EExportStep.Fail;
 				if( www.isNetworkError || www.isHttpError )
 				{
-					var error = $"{( www.isNetworkError ? "isNetworkError " : "" )}{( www.isHttpError ? "isHttpError" : "" )}({www.error})";
+					var error = $"{( www.isNetworkError ? "isNetworkError " : "" )}{( www.isHttpError ? "isHttpError" : "" )}({www.error}:{www.responseCode})";
 					Debug.Log( "!!Error!! " + error );
+
+					var json = Newtonsoft.Json.JsonConvert.SerializeObject( www );
+					json.FormatAsJson().LogToJsonFile( "export", _name + "_FAIL" );
+
 					_errorMessage = error;
 					_errorCode = www.error;
 				}
