@@ -3,10 +3,7 @@ using UnityEditor;
 using K10.EditorGUIExtention;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using UnityEngine.Networking;
-using System;
-using GameSparks.Core;
 using SimpleJson2;
 
 [CustomEditor(typeof(JsonExporterDefinition))]
@@ -20,9 +17,11 @@ public class JsonExporterDefinitionEditor : Editor
 	private SerializedProperty _urlField;
 	private Persistent<string> _author;
 
+	static string AuthorPath => Application.persistentDataPath + "Temp/Author.name";
+
 	void OnEnable()
 	{
-		_author = Persistent<string>.At( "Temp/Author.name" );
+		_author = Persistent<string>.At( AuthorPath );
 		_urlField = serializedObject.FindProperty( "_url" );
 		var exportFields = serializedObject.FindProperty( "_exportFields" );
 		_exportList = new KReorderableList( serializedObject, exportFields, "Configurations", IconCache.Get( "gear" ).Texture );
@@ -138,13 +137,11 @@ public class JsonExporterDefinitionEditor : Editor
 						if( exp.State == EExportStep.Ignored ) continue;
 						var field = exporter.GetField( i );
 						var fieldData = $"{{ \"tableName\": \"{field.FieldName}\", \"data\": {field.GetMemberValueSerialized()} }}";
-						string message = $"Send {i}";
 						var nextTrigger = sendNext;
 						exp.SetState( EExportStep.Queue );
 						sendNext = new CallOnce( () =>
 						{
-							Debug.Log( message );
-							exp.Trigger( url, fieldData, nextTrigger );
+							exp.Trigger( url, fieldData, nextTrigger, authorName );
 							SetDataDirty();
 						} );
 					}
@@ -191,17 +188,14 @@ public class JsonExporterDefinitionEditor : Editor
 			_state = state;
 		}
 
-		public void Trigger( string url, string data, IEventTrigger onComplete )
+		public void Trigger( string url, string data, IEventTrigger onComplete, string authorName )
 		{
 			_errorMessage = null;
 			_errorCode = null;
 			WWWForm form = new WWWForm();
-			// var realData = $"{{ \"updateData\": \"{data}\" }}";
 			var realData = data;
-			// form.AddField( "REQUEST_BODY", realData );
 			form.AddField( "updateTable", realData );
-			var author = Persistent<string>.At( "Temp/Author.name" );
-			form.AddField( "author", author.Get );
+			if( authorName != null ) form.AddField( "author", authorName );
 			var source = SystemInfo.deviceName;
 			form.AddField( "source", source );
 
@@ -215,8 +209,8 @@ public class JsonExporterDefinitionEditor : Editor
 			{
 				_state = EExportStep.Fail;
 				if( www.isNetworkError || www.isHttpError )
-				{
-					Debug.Log( $"!!Error!! {( www.isNetworkError ? "isNetworkError " : "" )}{( www.isHttpError ? "isHttpError" : "" )}" );
+				{					
+					Debug.Log( $"!!Error!! {( www.isNetworkError ? "isNetworkError " : "" )}{( www.isHttpError ? "isHttpError" : "" )}\n{www.error}" );
 				}
 				else
 				{
@@ -229,7 +223,6 @@ public class JsonExporterDefinitionEditor : Editor
 						if( hasErrors )
 						{
 							Debug.Log( "Errors:\n" + errors.ToStringOrNull().FormatAsJson( "    " ) );
-							Debug.Log( errors.GetType() );
 							if( errors is JsonObject ejo )
 							{
 								ejo.TryGetValue( "errorMessage", out var errorMessage );

@@ -176,13 +176,12 @@ public static class ExportFieldUtility
 		{
 			oRef = rootObject.objectReferenceValue;
 			if( oRef != null ) type = oRef.GetType();
-			// Debug.Log( $"{fieldName.stringValue} => { type.ToStringOrNull() }" );
 			useSO = true;
 		}
 
-		if( oRef == null ) GuiColorManager.New( K10GuiStyles.RED_TINT_COLOR );
+		if( type == null ) GuiColorManager.New( K10GuiStyles.RED_TINT_COLOR );
 
-		var property = element.FindPropertyRelative( "_memberPath" );
+		var memberPath = element.FindPropertyRelative( "_memberPath" );
 		var serialization = element.FindPropertyRelative( "_serialization" );
 		var serType = (EFieldSerializationType)serialization.enumValueIndex;
 		var format = element.FindPropertyRelative( "_format" );
@@ -190,7 +189,7 @@ public static class ExportFieldUtility
 		var firstLine = rect.RequestTop( lineHeight );
 		rect = rect.CutTop( lineHeight );
 
-		bool canInpect = useSO;
+		bool canInpect = oRef != null;
 
 		var inspect = element.FindPropertyRelative( "_inspect" );
 		var inspectedElement = element.FindPropertyRelative( "_inspectedElement" );
@@ -215,7 +214,7 @@ public static class ExportFieldUtility
 		selected.boolValue = EditorGUI.ToggleLeft( firstLine.RequestLeft( 16 ), "", selected.boolValue );
 		firstLine = firstLine.CutLeft( 16 );
 
-		var prop = property.stringValue;
+		var prop = memberPath.stringValue;
 		var stack = prop.Split( '.' );
 		var sLen = stack.Length;
 
@@ -243,11 +242,15 @@ public static class ExportFieldUtility
 		var qType = type;
 
 		var secondRect = firstLine.VerticalSlice( 2, 5, 3 );
-		if( !isInherited && !useSO )
+		if( /*!isInherited &&*/ !useSO )
 		{
-			var elements = sLen + 2;
-			format.stringValue = EditorGUI.TextField( secondRect.VerticalSlice( 0, elements ), format.stringValue );
-			if( string.IsNullOrEmpty( format.stringValue ) ) format.stringValue = "{0}";
+			var elements = sLen + 1;
+			if( !isInherited ) elements++;
+			int elementId = 0;
+			if( !isInherited ) {
+				format.stringValue = EditorGUI.TextField( secondRect.VerticalSlice( elementId++, elements ), format.stringValue );
+				if( string.IsNullOrEmpty( format.stringValue ) ) format.stringValue = "{0}";
+			}
 
 			var newProp = "";
 			var newDebugProp = "";
@@ -255,7 +258,7 @@ public static class ExportFieldUtility
 			for( int i = 0; i < sLen; i++ )
 			{
 				var p = stack[i];
-				var newP = GetMember( p, secondRect.VerticalSlice( i + 1, elements ), ref qType );
+				var newP = MemberSelectionField( p, secondRect.VerticalSlice( elementId++, elements ), ref qType );
 				newDebugProp += "." + qType.ToStringOrNull();
 				if( !string.IsNullOrWhiteSpace( newP ) && newP != "-" )
 				{
@@ -265,14 +268,14 @@ public static class ExportFieldUtility
 				}
 			}
 
-			var lastP = GetMember( "-", secondRect.VerticalSlice( elements - 1, elements ), ref qType );
+			var lastP = MemberSelectionField( "-", secondRect.VerticalSlice( elementId++, elements ), ref qType );
 			if( !string.IsNullOrWhiteSpace( lastP ) && lastP != "-" )
 			{
 				if( !string.IsNullOrWhiteSpace( newProp ) ) newProp += ".";
 				newProp += lastP;
 			}
 
-			property.stringValue = newProp;
+			memberPath.stringValue = newProp;
 		}
 
 		if( useSO )
@@ -293,23 +296,26 @@ public static class ExportFieldUtility
 				var lineRect = rect.GetLineTop( height, 0 );
 				if( serType == EFieldSerializationType.ToArray && qType != null )
 				{
-					var t = qType;
 					var bt = qType;
-					while( !bt.IsGenericType && bt.BaseType != null ) { bt = bt.BaseType; }
-					if( bt.IsGenericType )
+					System.Type elementType = null;
+					do
 					{
-						var arguments = bt.GetGenericArguments();
-						qType = arguments.Single();
-					}
-					else //if( qType.IsArray )
-					{
-						qType = qType.GetElementType();
-					}
+						if( bt.IsGenericType )
+						{
+							elementType = bt.GetGenericArguments().Single();
+							
+						}
+						else if( bt.IsArray )
+						{
+							elementType = bt.GetElementType();
+						}
+						bt = bt.BaseType;
+					} while( elementType == null && bt != null );
+					qType = elementType;
 				}
-				var memberObj = GetMemberObject( oRef, type, export, out var name );
 				if( i < export.FieldsCount && i >= 0 )
 				{
-					var removeInner = export.GetField(i).DrawElement( f, lineRect, lineHeight, qType, memberObj, forceFold );
+					var removeInner = export.GetField(i).DrawElement( f, lineRect, lineHeight, qType, null, forceFold );
 					if( removeInner ) toRemove.Add( i );
 				}
 			}
@@ -317,14 +323,14 @@ public static class ExportFieldUtility
 			foreach( var id in toRemove ) fields.DeleteArrayElementAtIndex( id );
 		}
 
-		if( canInpect )
+		if( canInpect && oRef != null )
 		{
 			try {
 				export.InspectionBox( element, rect, type, oRef, serType, inspect.boolValue, inspectedElement );
 			} catch { }
 		}
 
-		if( oRef == null ) GuiColorManager.Revert();
+		if( type == null ) GuiColorManager.Revert();
 
 		return remove;
 	}
@@ -404,7 +410,7 @@ public static class ExportFieldUtility
 		return size;
 	}
 
-	public static string GetMember( string current, Rect rect, ref System.Type type )
+	public static string MemberSelectionField( string current, Rect rect, ref System.Type type )
 	{
 		var list = new List<MemberInfo>();
 		GetMembers( type, ref list );
