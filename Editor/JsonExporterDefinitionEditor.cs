@@ -17,7 +17,7 @@ public class JsonExporterDefinitionEditor : Editor
 	private SerializedProperty _urlField;
 	private Persistent<string> _author;
 
-	static string AuthorPath => Application.persistentDataPath + "Temp/Author.name";
+	static string AuthorPath => "Temp/Author.name";
 
 	void OnEnable()
 	{
