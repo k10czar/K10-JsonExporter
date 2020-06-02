@@ -354,8 +354,21 @@ public static class ExportFieldUtility
 
 			if( count > 0 )
 			{
-				inspectedElement.intValue = EditorGUI.IntField( firstLine.GetColumnRight( 32, SPACING ), inspectedElement.intValue );
-				inspectedElement.intValue = Mathf.Min( inspectedElement.intValue, count - 1 );
+				var value = inspectedElement.intValue;
+				value = EditorGUI.IntField( firstLine.GetColumnRight( 32, SPACING ), value );
+				var buttons = firstLine.GetColumnRight( firstLine.height / 2, SPACING );
+				bool canGoUp = value < ( count - 1 );
+				EditorGUI.BeginDisabledGroup( !canGoUp );
+				var up = IconButton.Draw( buttons.HorizontalSlice( 0, 2 ), "upTriangle", '▲', "", Color.white );
+				EditorGUI.EndDisabledGroup();
+				bool canGoDown = value > 0;
+				EditorGUI.BeginDisabledGroup( !canGoDown );
+				var down = IconButton.Draw( buttons.HorizontalSlice( 1, 2 ), "downTriangle", '▼', "", Color.white );
+				EditorGUI.EndDisabledGroup();
+				if( up ) value++;
+				if( down ) value--;
+				value = Mathf.Clamp( value, 0, count - 1 );
+				inspectedElement.intValue = value;
 			}
 		}
 	}
