@@ -8,6 +8,12 @@ using UnityEditor;
 
 public static class ExportFieldUtility
 {
+	[System.Flags]
+	public enum ElementAction { None, Remove = 0b1, MoveUp = 0b10, MoveDown = 0b100 }
+
+	public static bool AsMaskContains<T>( this T mask, T element ) where T : struct, IConvertible => ( mask.ToInt32( null ) & element.ToInt32( null ) ) == element.ToInt32( null );
+	public static void AsMaskWith<T>( this ref int mask, T element ) where T : struct, IConvertible => mask |= element.ToInt32( null );
+
 	const float SPACING = 2;
 	public const BindingFlags BindingAttr = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
 
@@ -61,6 +67,7 @@ public static class ExportFieldUtility
 					if( obj is bool b ) return b ? "true" : "false";
 					return string.Format( export.Format, obj.ToString() );
 				}
+			case EFieldSerializationType.ToStringToLower: return string.Format( export.Format, obj.ToString().ToLower() );
 			case EFieldSerializationType.BoolToNumber:
 				{
 					if( obj is bool b ) return b ? "1" : "0";
@@ -165,10 +172,10 @@ public static class ExportFieldUtility
 	}
 
 	public static bool IsRecurscive( EFieldSerializationType ser ) => ser == EFieldSerializationType.ToArray || ser == EFieldSerializationType.Inherited;
-	public static bool DrawElement( this ExportField export, SerializedProperty element, Rect rect, float lineHeight, System.Type type, object oRef = null, bool? forceFold = null )
+	public static ElementAction DrawElement( this ExportField export, SerializedProperty element, Rect rect, float lineHeight, System.Type type, object oRef = null, bool? forceFold = null, ElementAction validActions = 0 )
 	{
+		var returnFlag = 0;
 		bool useSO = false;
-		bool remove = false;
 		var rootObject = element.FindPropertyRelative( "_rootObject" );
 		var fieldName = element.FindPropertyRelative( "_fieldName" );
 
@@ -186,8 +193,17 @@ public static class ExportFieldUtility
 		var serType = (EFieldSerializationType)serialization.enumValueIndex;
 		var format = element.FindPropertyRelative( "_format" );
 
-		var firstLine = rect.RequestTop( lineHeight );
-		rect = rect.CutTop( lineHeight );
+		var firstLine = rect.GetLineTop( lineHeight );
+
+		var canMoveUp = validActions.AsMaskContains( ElementAction.MoveUp );
+		var canMoveDown = validActions.AsMaskContains( ElementAction.MoveDown );
+
+		if( canMoveUp || canMoveDown )
+		{
+			var buttons = firstLine.GetColumnRight( firstLine.height / 2 );
+			if( canMoveUp && IconButton.Draw( buttons.HorizontalSlice( 0, 2 ), "upTriangle", '▲' ) ) returnFlag.AsMaskWith( ElementAction.MoveUp );
+			if( canMoveDown && IconButton.Draw( buttons.HorizontalSlice( 1, 2 ), "downTriangle", '▼' ) ) returnFlag.AsMaskWith( ElementAction.MoveDown );
+		}
 
 		bool canInpect = oRef != null;
 
@@ -221,10 +237,10 @@ public static class ExportFieldUtility
 		var firstRect = firstLine.VerticalSlice( 0, 5, 2 );
 
 		var fieldNameRect = firstRect.VerticalSlice( 0, 2 );
-		if( !useSO )
+		if( validActions.AsMaskContains( ElementAction.Remove ) )
 		{
 			fieldNameRect = fieldNameRect.CutRight( 16 );
-			remove = IconButton.Draw( fieldNameRect.RequestRight( 16 ).MoveRight( 16 ), "minus" );
+			if( IconButton.Draw( fieldNameRect.RequestRight( 16 ).MoveRight( 16 ), "minus" ) ) returnFlag.AsMaskWith( ElementAction.Remove );
 		}
 		fieldName.stringValue = EditorGUI.TextField( fieldNameRect, fieldName.stringValue );
 
@@ -288,7 +304,8 @@ public static class ExportFieldUtility
 			rect = rect.CutLeft( lineHeight );
 			var toRemove = new HashSet<int>();
 			var iniQType = qType;
-			for( int i = 0; i < fields.arraySize; i++ )
+			var fCount = fields.arraySize;
+			for( int i = 0; i < fCount; i++ )
 			{
 				qType = iniQType;
 				var f = fields.GetArrayElementAtIndex( i );
@@ -313,14 +330,16 @@ public static class ExportFieldUtility
 					} while( elementType == null && bt != null );
 					qType = elementType;
 				}
-				if( i < export.FieldsCount && i >= 0 )
-				{
-					var removeInner = export.GetField(i).DrawElement( f, lineRect, lineHeight, qType, null, forceFold );
-					if( removeInner ) toRemove.Add( i );
-				}
+				var acts = (int)ElementAction.Remove;
+				if( i > 0 ) acts |= (int)ElementAction.MoveUp;
+				if( i + 1 < fCount ) acts |= (int)ElementAction.MoveDown;
+				var actions = export.GetField(i).DrawElement( f, lineRect, lineHeight, qType, null, forceFold, (ElementAction)acts );
+				if( actions.AsMaskContains( ElementAction.Remove ) ) toRemove.Add( i );
+				if( actions.AsMaskContains( ElementAction.MoveDown ) ) fields.MoveArrayElement( i, i + 1 );
+				if( actions.AsMaskContains( ElementAction.MoveUp ) ) fields.MoveArrayElement( i, i - 1 );
 			}
 
-			foreach( var id in toRemove ) fields.DeleteArrayElementAtIndex( id );
+			foreach( var idToRemove in toRemove ) fields.DeleteArrayElementAtIndex( idToRemove );
 		}
 
 		if( canInpect && oRef != null )
@@ -332,7 +351,7 @@ public static class ExportFieldUtility
 
 		if( type == null ) GuiColorManager.Revert();
 
-		return remove;
+		return (ElementAction)returnFlag;
 	}
 
 	private static void InspectionFields( object oRef, EFieldSerializationType serType, ref Rect firstLine, SerializedProperty inspect, SerializedProperty inspectedElement )

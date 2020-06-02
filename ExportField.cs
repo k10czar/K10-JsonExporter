@@ -4,7 +4,7 @@ using System.Reflection;
 using System.Text;
 using System;
 
-public enum EFieldSerializationType { ToString, ToJson, ToArray, Inherited, BoolToNumber, InvertedBool }
+public enum EFieldSerializationType { ToString, ToJson, ToArray, Inherited, BoolToNumber, InvertedBool, ToStringToLower }
 
 [System.Serializable]
 public class ExportField
@@ -38,7 +38,7 @@ public class ExportField
 	public string MemberPath => _memberPath;
 
 	public int FieldsCount => _fields.Count;
-	public ExportField GetField( int index ) => _fields[index];
+	public ExportField GetField( int index ) => index < _fields.Count ? _fields[index] : null;
 
 	public bool CheckIfIsDirectValue()
 	{

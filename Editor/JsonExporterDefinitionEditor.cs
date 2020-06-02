@@ -285,7 +285,7 @@ public class JsonExporterDefinitionEditor : Editor
 
 		public void Set( ExportField exportField )
 		{
-			_name = exportField.FieldName;
+			_name = "\"" + exportField.FieldName + "\"";
 			if( !exportField.Selected ) _state = EExportStep.Ignored;
 			else if( _state == EExportStep.Ignored ) _state = EExportStep.Idle;
 		}
