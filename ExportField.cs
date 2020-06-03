@@ -4,7 +4,7 @@ using System.Reflection;
 using System.Text;
 using System;
 
-public enum EFieldSerializationType { ToString, ToJson, ToArray, Inherited, BoolToNumber, InvertedBool, ToStringToLower }
+public enum EFieldSerializationType { ToString, ToJson, ToArray, Inherited, BoolToNumber, InvertedBool, ToStringToLower, AsBitMaskToValues }
 
 [System.Serializable]
 public class ExportField

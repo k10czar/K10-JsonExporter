@@ -86,7 +86,7 @@ public class JsonExporterDefinitionEditor : Editor
 				GUILayout.BeginHorizontal( "HelpBox" );
 				if( color.HasValue ) GuiColorManager.Revert();
 				GUILayout.BeginHorizontal( "HelpBox" );
-				GUILayout.Label( _exportation[i].Name );
+				GUILayout.Label( "\"" + _exportation[i].Name + "\"" );
 				GUILayout.EndHorizontal();
 				if( color.HasValue ) GuiColorManager.New( color.Value );
 				GUILayout.BeginHorizontal( "HelpBox" );
@@ -285,7 +285,7 @@ public class JsonExporterDefinitionEditor : Editor
 
 		public void Set( ExportField exportField )
 		{
-			_name = "\"" + exportField.FieldName + "\"";
+			_name = exportField.FieldName;
 			if( !exportField.Selected ) _state = EExportStep.Ignored;
 			else if( _state == EExportStep.Ignored ) _state = EExportStep.Idle;
 		}

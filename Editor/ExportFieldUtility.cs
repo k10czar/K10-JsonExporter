@@ -38,7 +38,8 @@ public static class ExportFieldUtility
 	public static string GetMemberValueSerialized( object rootObject, System.Type type, ExportField export )
 	{
 		var obj = GetMemberObject( rootObject, type, export, out var memberName );
-		if( obj == null ) return $"null({memberName})";
+		if( obj == null ) return "null";
+		// if( obj == null ) return $"null({memberName})";
 		return Serialize( obj, export );
 	}
 
@@ -65,6 +66,8 @@ public static class ExportFieldUtility
 			case EFieldSerializationType.ToString:
 				{
 					if( obj is bool b ) return b ? "true" : "false";
+					if( obj is float f ) return f.ToString( System.Globalization.CultureInfo.InvariantCulture );
+					if( obj is double d ) return d.ToString( System.Globalization.CultureInfo.InvariantCulture );
 					return string.Format( export.Format, obj.ToString() );
 				}
 			case EFieldSerializationType.ToStringToLower: return string.Format( export.Format, obj.ToString().ToLower() );
@@ -104,6 +107,33 @@ public static class ExportFieldUtility
 					var SB = export.SB;
 					SB.Clear();
 					AppendFields( export, obj );
+					return SB.ToString();
+				}
+			case EFieldSerializationType.AsBitMaskToValues:
+				{
+					var SB = export.SB;
+					SB.Clear();
+					SB.Append( "[" );
+					if( obj is IConvertible conv )
+					{
+						bool fisrt = true;
+						var value = conv.ToInt32( null );
+						int id = 0;
+						while( value > 0 )
+						{
+							if( ( value % 2 ) == 1 )
+							{
+								if( !fisrt ) SB.Append( ", " );
+								fisrt = false;
+								SB.Append( id );
+							}
+							id++;
+							value = value >> 1;
+						}
+						
+						if( !fisrt ) SB.Append( " " );
+					}
+					SB.Append( "]" );
 					return SB.ToString();
 				}
 		}
@@ -396,6 +426,7 @@ public static class ExportFieldUtility
 	{
 		if( inspect && oRef != null )
 		{
+			// EditorGUI.BeginDisabledGroup( true );
 			var inspection = element.FindPropertyRelative( "_inspection" );
 			if( serType == EFieldSerializationType.ToArray )
 			{
@@ -417,6 +448,7 @@ public static class ExportFieldUtility
 			}
 			else inspection.stringValue = GetFieldDefinition( oRef, type, export ).FormatAsJson( "    " );
 			EditorGUI.TextArea( rect, inspection.stringValue );
+			// EditorGUI.EndDisabledGroup();
 		}
 	}
 
