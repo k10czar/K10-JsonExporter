@@ -232,8 +232,8 @@ public class JsonExporterDefinitionEditor : Editor
 				}
 				else
 				{
-					var dh = www.downloadHandler;
-					Debug.Log( "dh.text:\n" + dh.text );
+					var dh = www.downloadHandler;					
+					dh.text.FormatAsJson().LogToJsonFile( "export", _name + "_RESPONSE" );
 					SimpleJson2.SimpleJson2.TryDeserializeObject( dh.text, out var jObj );
 					if( jObj is JsonObject jo )
 					{
@@ -254,8 +254,8 @@ public class JsonExporterDefinitionEditor : Editor
 							var hasResponse = jo.TryGetValue( "response", out var response );
 							var hasData = jo.TryGetValue( "newData", out var dataBack );
 							if( hasResponse ) _state = EExportStep.Succeeded;
-							Debug.Log( $"Succeeded! {hasResponse} \n{response.ToStringOrNull().FormatAsJson( "    " )}" );
-							Debug.Log( $"hasData? {hasData} \n{dataBack.ToStringOrNull().FormatAsJson( "    " )}" );
+							// Debug.Log( $"Succeeded! {hasResponse} \n{response.ToStringOrNull().FormatAsJson( "    " )}" );
+							// Debug.Log( $"hasData? {hasData} \n{dataBack.ToStringOrNull().FormatAsJson( "    " )}" );
 						}
 					}
 					else
