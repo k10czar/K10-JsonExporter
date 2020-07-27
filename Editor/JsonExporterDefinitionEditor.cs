@@ -15,6 +15,7 @@ public class JsonExporterDefinitionEditor : Editor
 	bool exporting = false;
 	List<ExportationElement> _exportation = new List<ExportationElement>();
 	private SerializedProperty _urlField;
+	private SerializedProperty _exportFields;
 	private Persistent<string> _author;
 
 	static string AuthorPath => "Temp/Author.name";
@@ -23,21 +24,21 @@ public class JsonExporterDefinitionEditor : Editor
 	{
 		_author = Persistent<string>.At( AuthorPath );
 		_urlField = serializedObject.FindProperty( "_url" );
-		var exportFields = serializedObject.FindProperty( "_exportFields" );
-		_exportList = new KReorderableList( serializedObject, exportFields, "Configurations", IconCache.Get( "gear" ).Texture );
+		_exportFields = serializedObject.FindProperty( "_exportFields" );
+		_exportList = new KReorderableList( serializedObject, _exportFields, "Configurations", IconCache.Get( "gear" ).Texture );
 
 		var lineHeight = EditorGUIUtility.singleLineHeight;
 		var exporter = target as JsonExporterDefinition;
 
 		_exportList.List.elementHeightCallback = ( int index ) =>
 		{
-			var element = exportFields.GetArrayElementAtIndex( index );
+			var element = _exportFields.GetArrayElementAtIndex( index );
 			return ExportFieldUtility.CalculateHeight( element, lineHeight );
 		};
 
 		_exportList.List.drawElementCallback = ( Rect rect, int index, bool isActive, bool isFocused ) =>
 		{
-			var element = exportFields.GetArrayElementAtIndex( index );
+			var element = _exportFields.GetArrayElementAtIndex( index );
 			exporter.GetField( index ).DrawElement( element, rect.CutLeft( 12 ), lineHeight, null );
 		};
 	}
@@ -66,13 +67,18 @@ public class JsonExporterDefinitionEditor : Editor
 		var authorName = _author.Get;
 		bool authorIsValid = IsValidAuthorName( authorName );
 		if( !authorIsValid ) GuiColorManager.New( K10GuiStyles.RED_TINT_COLOR );
-		GUILayout.BeginHorizontal( "HelpBox" );
+		GUILayout.BeginVertical( "HelpBox" );
+		EditorGUILayout.BeginHorizontal();
 		EditorGUILayout.LabelField( "Author", GUILayout.MaxWidth( 40 ) );
-		authorName = EditorGUILayout.TextArea( authorName, GUILayout.MaxWidth( 100 ) );
+		authorName = EditorGUILayout.TextArea( authorName );
+		EditorGUILayout.EndHorizontal();
 		_author.Set = authorName;
 		bool canSend = !exporting && IsValidAuthorName( authorName );
 		EditorGUILayout.PropertyField( _urlField );
-		GUILayout.EndHorizontal();
+		EditorGUI.BeginDisabledGroup( !canSend );
+		var send = GUILayout.Button( "Export", K10GuiStyles.bigbuttonStyle ) && canSend;
+		EditorGUI.EndDisabledGroup();
+		GUILayout.EndVertical();
 		if( !authorIsValid ) GuiColorManager.Revert();
 		EditorGUI.EndDisabledGroup();
 		GuiLabelWidthManager.Revert();
@@ -104,14 +110,50 @@ public class JsonExporterDefinitionEditor : Editor
 		}
 		GUILayout.EndVertical();
 		GUILayout.EndVertical();
-		EditorGUI.BeginDisabledGroup( !canSend );
-		var send = GUILayout.Button( "Export", K10GuiStyles.bigbuttonStyle ) && canSend;
-		EditorGUI.EndDisabledGroup();
 		GUILayout.EndVertical();
+
+		GUILayout.BeginVertical( "HelpBox" );
+		bool allSelected = true;
+		bool allSelectedAreOpen = true;
+		bool allUnselectedAreClosed = true;
+		for( int i = 0; i < _exportFields.arraySize; i++ )
+		{
+			var element = _exportFields.GetArrayElementAtIndex( i );
+			var selected = element.FindPropertyRelative( "_selected" ).boolValue;
+			allSelected &= selected;
+			var editMode = element.FindPropertyRelative( "_editMode" ).boolValue;
+			if( selected ) allSelectedAreOpen &= editMode;
+			else allUnselectedAreClosed &= !editMode;
+		}
+		GUILayout.BeginHorizontal( "HelpBox" );
+		EditorGUI.BeginDisabledGroup( exporting );
+		if( GUILayout.Button( $"{( allSelected ? "Unselect" : "Select" )} All" ) )
+		{
+			for( int i = 0; i < _exportFields.arraySize; i++ )
+			{
+				var element = _exportFields.GetArrayElementAtIndex( i );
+				element.FindPropertyRelative( "_selected" ).boolValue = !allSelected;
+			}
+		}
+		if( GUILayout.Button( $"Invert Selection" ) )
+		{
+			for( int i = 0; i < _exportFields.arraySize; i++ )
+			{
+				var element = _exportFields.GetArrayElementAtIndex( i );
+				var selected = element.FindPropertyRelative( "_selected" );
+				selected.boolValue = !selected.boolValue;
+			}
+		}
+		EditorGUI.EndDisabledGroup();
+		if( GUILayout.Button( $"{( allSelectedAreOpen ? "Close" : "Open" )} all selected(s)" ) ) ToggleElements( _exportFields, !allSelectedAreOpen, true );
+		if( GUILayout.Button( $"{( allUnselectedAreClosed ? "Open" : "Close" )} all unselected(s)" ) ) ToggleElements( _exportFields, allUnselectedAreClosed, false );
+		GUILayout.EndHorizontal();
 
 		EditorGUI.BeginDisabledGroup( exporting );
 		_exportList.DoLayoutList();
 		EditorGUI.EndDisabledGroup();
+		GUILayout.EndVertical();
+
 		serializedObject.ApplyModifiedProperties();
 
 		if( !exporting )
@@ -149,6 +191,24 @@ public class JsonExporterDefinitionEditor : Editor
 					sendNext.Trigger();
 				}
 			}
+		}
+	}
+
+	void ToggleElements( SerializedProperty prop, bool open, bool? onlyIfSelected = null )
+	{
+		for( int i = 0; i < prop.arraySize; i++ )
+		{
+			var element = prop.GetArrayElementAtIndex( i );
+			bool valid = true;
+			if( onlyIfSelected.HasValue ) 
+			{
+				var selected = element.FindPropertyRelative( "_selected" ).boolValue;
+				valid = ( onlyIfSelected.Value == selected );
+			}
+			if( !valid ) continue;
+			element.FindPropertyRelative( "_editMode" ).boolValue = open;
+			var fields = element.FindPropertyRelative( "_fields" );
+			ToggleElements( fields, open, onlyIfSelected );
 		}
 	}
 
