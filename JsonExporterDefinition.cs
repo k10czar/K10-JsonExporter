@@ -9,4 +9,6 @@ public class JsonExporterDefinition : ScriptableObject
 
 	public int FieldsCount => _exportFields.Count;
 	public ExportField GetField( int index ) => _exportFields[index];
+	
+	public string Url { get => _url; set => _url = value; }
 }
