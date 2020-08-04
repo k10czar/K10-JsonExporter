@@ -18,7 +18,7 @@ public class JsonExporterDefinitionEditor : Editor
 	private SerializedProperty _exportFields;
 	private Persistent<string> _author;
 
-	static string AuthorPath => "Temp/Author.name";
+	static string AuthorPath => "/Temp/Author.name";
 
 	void OnEnable()
 	{
@@ -176,14 +176,26 @@ public class JsonExporterDefinitionEditor : Editor
 					for( int i = _exportation.Count - 1; i >= 0; i-- )
 					{
 						var exp = _exportation[i];
-						if( exp.State == EExportStep.Ignored ) continue;
+						if( exp.Ignored ) continue;
 						var field = exporter.GetField( i );
-						var fieldData = $"{{ \"tableName\": \"{field.FieldName}\", \"data\": {field.GetMemberValueSerialized()} }}";
+						var batchSize = field.BatchSize;
 						var nextTrigger = sendNext;
+						var datas = new List<string>();
+						Debug.Log( $"batchSize: {batchSize}" );
+						if( batchSize == 0 ) datas.Add( $"{{ \"tableName\": \"{field.FieldName}\", \"data\": {field.GetMemberValueSerialized()} }}" );
+						else
+						{
+							var elementsCount = field.GetCount();
+							Debug.Log( $"elementsCount: {elementsCount}" );
+							for( int e = 0; e < elementsCount; e += batchSize )
+								datas.Add( $"{{ \"tableName\": \"{field.FieldName}\"," +
+											$" \"ignoreClear\": {((e!=0)?"true":"false")}," +
+											$"\"data\": {field.GetMemberValueSerialized( e, batchSize )} }}" );
+						}
 						exp.SetState( EExportStep.Queue );
 						sendNext = new CallOnce( () =>
 						{
-							exp.Trigger( url, fieldData, nextTrigger, authorName );
+							exp.Trigger( url, datas, nextTrigger, authorName );
 							SetDataDirty();
 						} );
 					}
@@ -221,31 +233,37 @@ public class JsonExporterDefinitionEditor : Editor
 	public class ExportationElement
 	{
 		string _name;
-		string _data;
-		string _errorMessage;
-		string _errorCode;
-		EExportStep _state;
+		int _count;
+		List<string> _errorMessage = new List<string>();
+		List<EExportStep> _state = new List<EExportStep>();
 		UnityWebRequest _request;
-		UnityWebRequestAsyncOperation _asyncOp;
 
 		public string Name => _name;
-		public EExportStep State => _state;
-		public bool Exporting => _state == EExportStep.Queue || _state == EExportStep.Sent;
+		public bool Ignored => _state.Contains( EExportStep.Ignored );
+		public bool Exporting => _state.Contains( EExportStep.Queue ) || _state.Contains( EExportStep.Sent );
+		public bool AllSucceeded => _state.All( ( st ) => st == EExportStep.Succeeded );
+		public bool Finished => _state.All( ( st ) => st == EExportStep.Succeeded || st == EExportStep.Fail );
+		public bool HasErrors => _state.Contains( EExportStep.Fail );
 
 		public string Message
 		{
 			get
 			{
-				var stateStr = _state.ToString();
-				if( _state != EExportStep.Succeeded && _state != EExportStep.Fail ) return stateStr;
-				if( string.IsNullOrWhiteSpace( _errorMessage ) ) return stateStr;
-				return $"{stateStr}: {_errorMessage}";
+				var countAppend = ( _count > 0 ) ? $" {_state.FindAll( ( st ) => st == EExportStep.Succeeded || st == EExportStep.Fail ).Count}/{_count}" : string.Empty;
+				if( Exporting && _count > 0 ) return "Exporting" + countAppend;
+				if( !Finished || AllSucceeded )
+				{
+					if( _state.Count > 0 ) return _state[0].ToString() + countAppend;
+					return "NULL";
+				}
+				return $"{string.Join( "\n", _errorMessage.ToArray() )}";
 			}
 		}
 
 		public void SetState( EExportStep state )
 		{
-			_state = state;
+			_state.Clear();
+			_state.Add( state );
 		}
 
 		public class BypassCertificate : CertificateHandler
@@ -258,96 +276,113 @@ public class JsonExporterDefinitionEditor : Editor
 			}
 		}
 
-		public void Trigger( string url, string data, IEventTrigger onComplete, string authorName )
+		public void Trigger( string url, List<string> data, IEventTrigger onComplete, string authorName )
 		{
-			_errorMessage = null;
-			_errorCode = null;
-			WWWForm form = new WWWForm();
-			var realData = data;
-			form.AddField( "updateTable", realData );
-			if( !string.IsNullOrEmpty( authorName ) ) form.AddField( "author", authorName );
-			form.AddField( "source", SystemInfo.deviceName );
+			_errorMessage.Clear();
+			_state.Clear();
 
-			Debug.Log( $"Post to {url}\nwith data:\n{realData.FormatAsJson( "    " )}" );
-			realData.FormatAsJson().LogToJsonFile( "export", _name );
+			_count = data.Count;
 
-			UnityWebRequest www = UnityWebRequest.Post( url, form );
-			www.certificateHandler = new BypassCertificate();
+			var startTrigger = new EventSlot();
+			var currentTrigger = startTrigger;
 
-			_asyncOp = www.SendWebRequest();
-			_state = EExportStep.Sent;
-			_asyncOp.completed += ( aOp ) =>
+			for( int i = 0; i < data.Count; i++ )
 			{
-				_state = EExportStep.Fail;
-				if( www.isNetworkError || www.isHttpError )
-				{
-					var error = $"{( www.isNetworkError ? "isNetworkError " : "" )}{( www.isHttpError ? "isHttpError" : "" )}({www.error}:{www.responseCode})";
-					Debug.Log( "!!Error!! " + error );
+				_state.Add( EExportStep.Queue );
+				var thisID = i;
+				WWWForm form = new WWWForm();
+				var realData = data[thisID];
+				form.AddField( "updateTable", realData );
+				if( !string.IsNullOrEmpty( authorName ) ) form.AddField( "author", authorName );
+				form.AddField( "source", SystemInfo.deviceName );
 
-					var json = Newtonsoft.Json.JsonConvert.SerializeObject( www );
-					json.FormatAsJson().LogToJsonFile( "export", _name + "_FAIL" );
+				Debug.Log( $"Post to {url}\nwith data:\n{realData.FormatAsJson( "    " )}" );
+				var exportName = data.Count > 1 ? $"export_{i}_of_{data.Count}" : "export";
+				realData.FormatAsJson().LogToJsonFile( exportName, _name );
 
-					_errorMessage = error;
-					_errorCode = www.error;
-				}
-				else
+				UnityWebRequest www = UnityWebRequest.Post( url, form );
+				www.certificateHandler = new BypassCertificate();
+
+				var nextTrigger = new EventSlot();
+				currentTrigger.Register( () => 
 				{
-					var dh = www.downloadHandler;					
-					dh.text.FormatAsJson().LogToJsonFile( "export", _name + "_RESPONSE" );
-					SimpleJson2.SimpleJson2.TryDeserializeObject( dh.text, out var jObj );
-					if( jObj is JsonObject jo )
+					var asyncOp = www.SendWebRequest();
+					_state[thisID] = EExportStep.Sent;
+					asyncOp.completed += ( aOp ) =>
 					{
-						var hasErrors = jo.TryGetValue( "errors", out var errors );
-						if( hasErrors )
+						_state[thisID] = EExportStep.Fail;
+						if( www.isNetworkError || www.isHttpError )
 						{
-							Debug.Log( "Errors:\n" + errors.ToStringOrNull().FormatAsJson( "    " ) );
-							if( errors is JsonObject ejo )
-							{
-								ejo.TryGetValue( "errorMessage", out var errorMessage );
-								ejo.TryGetValue( "errorCode", out var errorCode );
-								_errorMessage = errorMessage as string;
-								_errorCode = errorCode as string;
-							}
+							var error = $"{( www.isNetworkError ? "isNetworkError " : "" )}{( www.isHttpError ? "isHttpError" : "" )}({www.error}:{www.responseCode})";
+							Debug.Log( "!!Error!! " + error );
+
+							var json = Newtonsoft.Json.JsonConvert.SerializeObject( www );
+							json.FormatAsJson().LogToJsonFile( exportName, _name + "_FAIL" );
+
+							_errorMessage.Add( $"[{thisID}]:{error}" );
+							// _errorCode[thisID] = www.error;
 						}
 						else
 						{
-							var hasResponse = jo.TryGetValue( "response", out var response );
-							var hasData = jo.TryGetValue( "newData", out var dataBack );
-							if( hasResponse ) _state = EExportStep.Succeeded;
-							// Debug.Log( $"Succeeded! {hasResponse} \n{response.ToStringOrNull().FormatAsJson( "    " )}" );
-							// Debug.Log( $"hasData? {hasData} \n{dataBack.ToStringOrNull().FormatAsJson( "    " )}" );
+							var dh = www.downloadHandler;
+							dh.text.FormatAsJson().LogToJsonFile( exportName, _name + "_RESPONSE" );
+							SimpleJson2.SimpleJson2.TryDeserializeObject( dh.text, out var jObj );
+							if( jObj is JsonObject jo )
+							{
+								var hasErrors = jo.TryGetValue( "errors", out var errors );
+								if( hasErrors )
+								{
+									Debug.Log( "Errors:\n" + errors.ToStringOrNull().FormatAsJson( "    " ) );
+									if( errors is JsonObject ejo )
+									{
+										ejo.TryGetValue( "errorMessage", out var errorMessage );
+										ejo.TryGetValue( "errorCode", out var errorCode );
+										_errorMessage.Add( $"[{thisID}]:{errorMessage as string}" );
+										// _errorCode[thisID] = errorCode as string;
+									}
+								}
+								else
+								{
+									var hasResponse = jo.TryGetValue( "response", out var response );
+									var hasData = jo.TryGetValue( "newData", out var dataBack );
+									if( hasResponse ) _state[thisID] = EExportStep.Succeeded;
+									// Debug.Log( $"Succeeded! {hasResponse} \n{response.ToStringOrNull().FormatAsJson( "    " )}" );
+									// Debug.Log( $"hasData? {hasData} \n{dataBack.ToStringOrNull().FormatAsJson( "    " )}" );
+								}
+							}
+							else
+							{
+								Debug.Log( "Malformed response\n" + dh.text );
+							}
 						}
-					}
-					else
-					{
-						Debug.Log( "Malformed response\n" + dh.text );
-					}
-				}
 
-				onComplete.Trigger();
-				www.Dispose();
-			};
+						nextTrigger.Trigger();
+						www.Dispose();
+					};
+				} );
+
+				currentTrigger = nextTrigger;
+			}
+			currentTrigger.Register( onComplete );
+			startTrigger.Trigger();
 		}
 
 		public Color? GetColor()
 		{
-			switch( _state )
-			{
-				case EExportStep.Idle: return K10GuiStyles.GREY_TINT_COLOR;
-				case EExportStep.Ignored: return K10GuiStyles.DARKER_TINT_COLOR;
-				case EExportStep.Queue: return K10GuiStyles.CYAN_TINT_COLOR;
-				case EExportStep.Sent: return K10GuiStyles.YELLOW_TINT_COLOR;
-				case EExportStep.Fail: return K10GuiStyles.RED_TINT_COLOR;
-				case EExportStep.Succeeded: return K10GuiStyles.GREEN_TINT_COLOR;
-			}
+			if( _state.Contains( EExportStep.Idle ) ) return K10GuiStyles.GREY_TINT_COLOR;
+			if( _state.Contains( EExportStep.Ignored ) ) return K10GuiStyles.DARKER_TINT_COLOR;
+			if( _state.Contains( EExportStep.Queue ) ) return K10GuiStyles.CYAN_TINT_COLOR;
+			if( _state.Contains( EExportStep.Sent ) ) return K10GuiStyles.YELLOW_TINT_COLOR;
+			if( _state.Contains( EExportStep.Fail ) ) return K10GuiStyles.RED_TINT_COLOR;
+			if( _state.Contains( EExportStep.Succeeded ) ) return K10GuiStyles.GREEN_TINT_COLOR;
 			return null;
 		}
 
 		public void Set( ExportField exportField )
 		{
 			_name = exportField.FieldName;
-			if( !exportField.Selected ) _state = EExportStep.Ignored;
-			else if( _state == EExportStep.Ignored ) _state = EExportStep.Idle;
+			if( !exportField.Selected ) SetState( EExportStep.Ignored );
+			else if( _state.Contains( EExportStep.Ignored ) ) SetState( EExportStep.Idle );
 		}
 	}
 }

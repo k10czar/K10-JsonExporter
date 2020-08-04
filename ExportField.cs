@@ -16,6 +16,7 @@ public class ExportField
 	[SerializeField] bool _editMode;
 	[SerializeField] bool _selected;
 	[SerializeField] int _inspectedElement;
+	[SerializeField] int _batchSize;
 	[SerializeField] bool _inspect;
 	// [SerializeField] EValidation _validation;
 	[SerializeField] List<ExportField> _fields;
@@ -32,6 +33,7 @@ public class ExportField
 	public string Inspection => _inspection;
 	public bool Inspect => _inspect;
 	public int InspectedElement => _inspectedElement;
+	public int BatchSize => _serialization == EFieldSerializationType.ToArray ? _batchSize : 0;
 	public bool EditMode => _editMode;
 	public string Format => _format;
 	public EFieldSerializationType Serialization => _serialization;

@@ -28,19 +28,37 @@ public static class ExportFieldUtility
 		return GetFieldDefinition( ro, ro.GetType(), export );
 	}
 
-
-	public static string GetMemberValueSerialized( this ExportField export )
+	public static string GetMemberValueSerialized( this ExportField export, int beginId = 0, int count = 0 )
 	{
 		var ro = export.RootObject;
-		return GetMemberValueSerialized( ro, ro.GetType(), export );
+		return GetMemberValueSerialized( ro, ro.GetType(), export, beginId, count );
 	}
 
-	public static string GetMemberValueSerialized( object rootObject, System.Type type, ExportField export )
+	public static int GetCount( this ExportField export )
+	{
+		var ro = export.RootObject;
+		var obj = GetMemberObject( ro, ro.GetType(), export, out var memberName );
+		switch( export.Serialization )
+		{
+			case EFieldSerializationType.ToArray:
+				{
+					int count = 0;
+					if( obj is System.Collections.IEnumerable enu )
+					{
+						foreach( var o in enu ) count++;
+					}
+					return count;
+				}
+		}
+		return 0;
+	}
+
+	public static string GetMemberValueSerialized( object rootObject, System.Type type, ExportField export, int beginId = 0, int count = 0 )
 	{
 		var obj = GetMemberObject( rootObject, type, export, out var memberName );
 		if( obj == null ) return "null";
 		// if( obj == null ) return $"null({memberName})";
-		return Serialize( obj, export );
+		return Serialize( obj, export, beginId, count );
 	}
 
 	public static object GetMemberObject( object rootObject, System.Type type, ExportField export, out string lastMemberName )
@@ -58,7 +76,7 @@ public static class ExportFieldUtility
 		return obj;
 	}
 
-	public static string Serialize( object obj, ExportField export )
+	public static string Serialize( object obj, ExportField export, int beginId/* = 0*/, int count/* = 0*/ )
 	{
 		switch( export.Serialization )
 		{
@@ -90,8 +108,13 @@ public static class ExportFieldUtility
 					if( obj is System.Collections.IEnumerable enu )
 					{
 						bool isDirectValue = export.CheckIfIsDirectValue();
+						int id = -1;
+						int endId = ( count > 0 ) ? ( beginId + count ) : int.MaxValue;
 						foreach( var o in enu )
 						{
+							id++;
+							if( id < beginId ) continue;
+							else if( id >= endId ) break;
 							if( !fisrt ) SB.Append( ", " );
 							SB.Append( " " );
 							fisrt = false;
@@ -322,6 +345,16 @@ public static class ExportFieldUtility
 			}
 
 			memberPath.stringValue = newProp;
+		}
+
+		bool needDefineBatchSize = useSO && ( newSerType == EFieldSerializationType.ToArray );
+		if( needDefineBatchSize )
+		{
+			var batchRect = secondRect.RequestLeft( 56 );
+			secondRect = secondRect.CutLeft( 56 );
+			var batchSize = element.FindPropertyRelative( "_batchSize" );
+			batchSize.intValue = Mathf.Max( EditorGUI.IntField( batchRect, batchSize.intValue ), 0 );
+			EditorGUI.LabelField( batchRect, batchSize.intValue == 0 ? "(∞)batch" : "batch", K10GuiStyles.unitStyle );
 		}
 
 		if( useSO )
