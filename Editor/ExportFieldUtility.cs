@@ -11,9 +11,6 @@ public static class ExportFieldUtility
 	[System.Flags]
 	public enum ElementAction { None, Remove = 0b1, MoveUp = 0b10, MoveDown = 0b100 }
 
-	public static bool AsMaskContains<T>( this T mask, T element ) where T : struct, IConvertible => ( mask.ToInt32( null ) & element.ToInt32( null ) ) == element.ToInt32( null );
-	public static void AsMaskWith<T>( this ref int mask, T element ) where T : struct, IConvertible => mask |= element.ToInt32( null );
-
 	const float SPACING = 2;
 	public const BindingFlags BindingAttr = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
 
