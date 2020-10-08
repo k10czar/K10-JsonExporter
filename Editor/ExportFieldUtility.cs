@@ -109,6 +109,8 @@ public static class ExportFieldUtility
 						int endId = ( count > 0 ) ? ( beginId + count ) : int.MaxValue;
 						foreach( var o in enu )
 						{
+							if (o is IExportIgnorable eI && eI.Ignore) continue;
+							
 							id++;
 							if( id < beginId ) continue;
 							else if( id >= endId ) break;
