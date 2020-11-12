@@ -448,7 +448,8 @@ public static class ExportFieldUtility
 				EditorGUI.EndDisabledGroup();
 				if( up ) value++;
 				if( down ) value--;
-				value = Mathf.Clamp( value, 0, count - 1 );
+				//value = Mathf.Clamp( value, 0, count - 1 );
+				value = Mathf.Max(value, 0);
 				inspectedElement.intValue = value;
 			}
 		}
