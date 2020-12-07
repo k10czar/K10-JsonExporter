@@ -263,19 +263,18 @@ public static class ExportFieldUtility
 		var inspectedElement = element.FindPropertyRelative( "_inspectedElement" );
 		if( canInpect ) InspectionFields( oRef, serType, ref firstLine, inspect, inspectedElement );
 
-		var editMode = element.FindPropertyRelative( "_editMode" );
 		var selected = element.FindPropertyRelative( "_selected" );
 		var fields = element.FindPropertyRelative( "_fields" );
 		if( IsRecurscive( serType ) && fields.arraySize > 0 )
 		{
-			var edit = editMode.boolValue;
-			var newEdit = EditorGUI.Foldout( firstLine.RequestLeft( 6 ), editMode.boolValue, "" );
+			var edit = element.isExpanded;
+			var newEdit = EditorGUI.Foldout( firstLine.RequestLeft( 6 ), element.isExpanded, "" );
 			if( edit != newEdit )
 			{
-				editMode.boolValue = newEdit;
-				if( Input.GetKey( KeyCode.LeftControl ) || Input.GetKey( KeyCode.LeftShift ) ) forceFold = editMode.boolValue;
+				element.isExpanded = newEdit;
+				if( Input.GetKey( KeyCode.LeftControl ) || Input.GetKey( KeyCode.LeftShift ) ) forceFold = element.isExpanded;
 			}
-			if( forceFold.HasValue ) editMode.boolValue = forceFold.Value;
+			if( forceFold.HasValue ) element.isExpanded = forceFold.Value;
 		}
 		firstLine = firstLine.CutLeft( 6 );
 
@@ -361,7 +360,7 @@ public static class ExportFieldUtility
 			EditorGUI.ObjectField( secondRect, rootObject, typeof( ScriptableObject ), GUIContent.none );
 		}
 
-		if( IsRecurscive( serType ) && editMode.boolValue )
+		if( IsRecurscive( serType ) && element.isExpanded )
 		{
 			rect = rect.CutLeft( lineHeight );
 			var toRemove = new HashSet<int>();
@@ -395,10 +394,14 @@ public static class ExportFieldUtility
 				var acts = (int)ElementAction.Remove;
 				if( i > 0 ) acts |= (int)ElementAction.MoveUp;
 				if( i + 1 < fCount ) acts |= (int)ElementAction.MoveDown;
-				var actions = export.GetField(i).DrawElement( f, lineRect, lineHeight, qType, null, forceFold, (ElementAction)acts );
-				if( actions.AsMaskContains( ElementAction.Remove ) ) toRemove.Add( i );
-				if( actions.AsMaskContains( ElementAction.MoveDown ) ) fields.MoveArrayElement( i, i + 1 );
-				if( actions.AsMaskContains( ElementAction.MoveUp ) ) fields.MoveArrayElement( i, i - 1 );
+				var fl = export?.GetField( i ) ?? null;
+				if( f != null )
+				{
+					var actions = fl.DrawElement( f, lineRect, lineHeight, qType, null, forceFold, (ElementAction)acts );
+					if( actions.AsMaskContains( ElementAction.Remove ) ) toRemove.Add( i );
+					if( actions.AsMaskContains( ElementAction.MoveDown ) ) fields.MoveArrayElement( i, i + 1 );
+					if( actions.AsMaskContains( ElementAction.MoveUp ) ) fields.MoveArrayElement( i, i - 1 );
+				}
 			}
 
 			foreach( var idToRemove in toRemove ) fields.DeleteArrayElementAtIndex( idToRemove );
@@ -494,8 +497,7 @@ public static class ExportFieldUtility
 			var inspection = element.FindPropertyRelative( "_inspection" );
 			size += ( lineHeight - 2.5f ) * ( inspection.stringValue.Count( ( c ) => c == '\n' ) + 1 );
 		}
-		var editMode = element.FindPropertyRelative( "_editMode" );
-		if( editMode.boolValue )
+		if( element.isExpanded )
 		{
 			var serialization = element.FindPropertyRelative( "_serialization" );
 			if( IsRecurscive( (EFieldSerializationType)serialization.enumValueIndex ) )

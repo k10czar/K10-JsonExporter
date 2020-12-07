@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using UnityEditor;
 using K10.EditorGUIExtention;
 using System.Collections.Generic;
@@ -6,8 +6,8 @@ using System.Linq;
 using UnityEngine.Networking;
 using SimpleJson2;
 
-[CustomEditor(typeof(JsonExporterDefinition))]
-public class JsonExporterDefinitionEditor : Editor
+[CustomEditor( typeof( JsonExporterData ) )]
+public class JsonExporterDataEditor : Editor
 {
 	public enum EExportStep { Idle, Ignored, Queue, Sent, Fail, Succeeded }
 
@@ -27,19 +27,57 @@ public class JsonExporterDefinitionEditor : Editor
 		_exportFields = serializedObject.FindProperty( "_exportFields" );
 		_exportList = new KReorderableList( serializedObject, _exportFields, "Configurations", IconCache.Get( "gear" ).Texture );
 
-		var lineHeight = EditorGUIUtility.singleLineHeight;
-		var exporter = target as JsonExporterDefinition;
+		float lineHeight = EditorGUIUtility.singleLineHeight;
+		float vSpacing = EditorGUIUtility.standardVerticalSpacing;
+		var exporter = target as JsonExporterData;
 
 		_exportList.List.elementHeightCallback = ( int index ) =>
 		{
 			var element = _exportFields.GetArrayElementAtIndex( index );
-			return ExportFieldUtility.CalculateHeight( element, lineHeight );
+			var firstLine = lineHeight + vSpacing;
+			var reference = element.FindPropertyRelative( "_reference" );
+			if( !element.isExpanded ) return firstLine;
+			if( reference.objectReferenceValue == null ) return firstLine;
+			var data = (JsonFieldDefinition)reference.objectReferenceValue;
+			SerializedObject so = new SerializedObject( data );
+			var p = so.FindProperty( "_definition" );
+			var edit = ExportFieldUtility.CalculateHeight( p, lineHeight );
+			return firstLine + edit;
 		};
 
 		_exportList.List.drawElementCallback = ( Rect rect, int index, bool isActive, bool isFocused ) =>
 		{
+			var firstLineRect = rect.RequestTop( lineHeight );
 			var element = _exportFields.GetArrayElementAtIndex( index );
-			exporter.GetField( index ).DrawElement( element, rect.CutLeft( 12 ), lineHeight, null );
+			var selected = element.FindPropertyRelative( "_selected" );
+			var batchSize = element.FindPropertyRelative( "_batch" );
+			var reference = element.FindPropertyRelative( "_reference" );
+
+			var data = (JsonFieldDefinition)reference.objectReferenceValue;
+			var w = firstLineRect.width / 3;
+			element.isExpanded = EditorGUI.Foldout( firstLineRect.RequestLeft( w ).RequestRight( w - 12 ), element.isExpanded, data?.Definition?.FieldName ?? "*********", true );
+			firstLineRect = firstLineRect.CutLeft( w );
+
+			selected.boolValue = EditorGUI.ToggleLeft( firstLineRect.RequestLeft( 16 ), "", selected.boolValue );
+			var r = firstLineRect.CutLeft( 16 );
+			var soRect = r;
+			if( reference.objectReferenceValue is JsonFieldDefinition jsd && jsd.Definition.ShowBatchSize )
+			{
+				var batchRect = r.RequestLeft( 60 );
+				soRect = soRect.CutLeft( 62 );
+				EditorGUI.LabelField( batchRect, batchSize.intValue == 0 ? "(∞)batch" : "batch", K10GuiStyles.unitStyle );
+				batchSize.intValue = Mathf.Max( EditorGUI.IntField( batchRect, batchSize.intValue ), 0 );
+			}
+			ScriptableObjectField.Draw<JsonFieldDefinition>( soRect, reference, "Assets/[_Configurations_]/ExportFields/" );
+
+			if( element.isExpanded && reference.objectReferenceValue != null )
+			{
+				rect = rect.CutTop( lineHeight + vSpacing );
+				SerializedObject so = new SerializedObject( data );
+				var p = so.FindProperty( "_definition" );
+				data.Definition.DrawElement( p, rect, lineHeight, null );
+				if( GUI.changed ) so.ApplyModifiedProperties();
+			}
 		};
 	}
 
@@ -51,25 +89,6 @@ public class JsonExporterDefinitionEditor : Editor
 
 	public override void OnInspectorGUI()
 	{
-		if( GUILayout.Button( "Convert" ) )
-		{
-			var j = target as JsonExporterDefinition;
-			var selectedAssetPath = System.IO.Path.GetDirectoryName( AssetDatabase.GetAssetPath( j ) );
-			var data = ScriptableObjectUtils.CreateSequential<JsonExporterData>( selectedAssetPath + "\\" + j.name + "Data" );
-			data.SetURL( j.Url );
-			var list = new List<JsonFieldDefinition>();
-			for( int i = 0; i < j.FieldsCount; i++ )
-			{
-				var f = j.GetField(i);
-				var fd = ScriptableObjectUtils.CreateSequential<JsonFieldDefinition>( selectedAssetPath + "\\ExportFields\\" + f.FieldName.ToStringOrNull() + "ExportDefinition" );
-				fd.SetData( f );
-				EditorUtility.SetDirty( fd );
-				list.Add( fd );
-			}
-			data.SetFields( list );
-			EditorUtility.SetDirty( data );
-		}
-
 		serializedObject.Update();
 
 		exporting = false;
@@ -78,6 +97,48 @@ public class JsonExporterDefinitionEditor : Editor
 			var ex = _exportation[i];
 			exporting |= ex.Exporting;
 		}
+
+		GUILayout.BeginVertical(GUI.skin.box );
+		bool allSelected = true;
+		// bool allSelectedAreOpen = true;
+		// bool allUnselectedAreClosed = true;
+		for( int i = 0; i < _exportFields.arraySize; i++ )
+		{
+			var element = _exportFields.GetArrayElementAtIndex( i );
+			var selected = element.FindPropertyRelative( "_selected" ).boolValue;
+			allSelected &= selected;
+			// var editMode = element.FindPropertyRelative( "_editMode" ).boolValue;
+			// if( selected ) allSelectedAreOpen &= editMode;
+			// else allUnselectedAreClosed &= !editMode;
+		}
+		GUILayout.BeginHorizontal(GUI.skin.box );
+		EditorGUI.BeginDisabledGroup( exporting );
+		if( GUILayout.Button( $"{( allSelected ? "Unselect" : "Select" )} All" ) )
+		{
+			for( int i = 0; i < _exportFields.arraySize; i++ )
+			{
+				var element = _exportFields.GetArrayElementAtIndex( i );
+				element.FindPropertyRelative( "_selected" ).boolValue = !allSelected;
+			}
+		}
+		if( GUILayout.Button( $"Invert Selection" ) )
+		{
+			for( int i = 0; i < _exportFields.arraySize; i++ )
+			{
+				var element = _exportFields.GetArrayElementAtIndex( i );
+				var selected = element.FindPropertyRelative( "_selected" );
+				selected.boolValue = !selected.boolValue;
+			}
+		}
+		EditorGUI.EndDisabledGroup();
+		// if( GUILayout.Button( $"{( allSelectedAreOpen ? "Close" : "Open" )} all selected(s)" ) ) ToggleElements( _exportFields, !allSelectedAreOpen, true );
+		// if( GUILayout.Button( $"{( allUnselectedAreClosed ? "Open" : "Close" )} all unselected(s)" ) ) ToggleElements( _exportFields, allUnselectedAreClosed, false );
+		GUILayout.EndHorizontal();
+
+		EditorGUI.BeginDisabledGroup( exporting );
+		_exportList.DoLayoutList();
+		EditorGUI.EndDisabledGroup();
+		GUILayout.EndVertical();
 
 		GUILayout.BeginVertical(GUI.skin.box );
 		GUILayout.BeginVertical(GUI.skin.box );
@@ -118,7 +179,7 @@ public class JsonExporterDefinitionEditor : Editor
 				GUILayout.Label( _exportation[i].Message );
 				GUILayout.EndHorizontal();
 				if( color.HasValue ) GuiColorManager.Revert();
-				GUILayout.EndHorizontal(  );
+				GUILayout.EndHorizontal();
 			}
 		}
 		else
@@ -131,59 +192,18 @@ public class JsonExporterDefinitionEditor : Editor
 		GUILayout.EndVertical();
 		GUILayout.EndVertical();
 
-		GUILayout.BeginVertical(GUI.skin.box );
-		bool allSelected = true;
-		bool allSelectedAreOpen = true;
-		bool allUnselectedAreClosed = true;
-		for( int i = 0; i < _exportFields.arraySize; i++ )
-		{
-			var element = _exportFields.GetArrayElementAtIndex( i );
-			var selected = element.FindPropertyRelative( "_selected" ).boolValue;
-			allSelected &= selected;
-			var editMode = element.FindPropertyRelative( "_editMode" ).boolValue;
-			if( selected ) allSelectedAreOpen &= editMode;
-			else allUnselectedAreClosed &= !editMode;
-		}
-		GUILayout.BeginHorizontal(GUI.skin.box );
-		EditorGUI.BeginDisabledGroup( exporting );
-		if( GUILayout.Button( $"{( allSelected ? "Unselect" : "Select" )} All" ) )
-		{
-			for( int i = 0; i < _exportFields.arraySize; i++ )
-			{
-				var element = _exportFields.GetArrayElementAtIndex( i );
-				element.FindPropertyRelative( "_selected" ).boolValue = !allSelected;
-			}
-		}
-		if( GUILayout.Button( $"Invert Selection" ) )
-		{
-			for( int i = 0; i < _exportFields.arraySize; i++ )
-			{
-				var element = _exportFields.GetArrayElementAtIndex( i );
-				var selected = element.FindPropertyRelative( "_selected" );
-				selected.boolValue = !selected.boolValue;
-			}
-		}
-		EditorGUI.EndDisabledGroup();
-		if( GUILayout.Button( $"{( allSelectedAreOpen ? "Close" : "Open" )} all selected(s)" ) ) ToggleElements( _exportFields, !allSelectedAreOpen, true );
-		if( GUILayout.Button( $"{( allUnselectedAreClosed ? "Open" : "Close" )} all unselected(s)" ) ) ToggleElements( _exportFields, allUnselectedAreClosed, false );
-		GUILayout.EndHorizontal();
-
-		EditorGUI.BeginDisabledGroup( exporting );
-		_exportList.DoLayoutList();
-		EditorGUI.EndDisabledGroup();
-		GUILayout.EndVertical();
-
 		serializedObject.ApplyModifiedProperties();
 
 		if( !exporting )
 		{
-			var exporter = target as JsonExporterDefinition;
+			var exporter = target as JsonExporterData;
 			int count = exporter.FieldsCount;
 			while( _exportation.Count < count ) _exportation.Add( new ExportationElement() );
 			while( _exportation.Count > count ) _exportation.RemoveAt( _exportation.Count - 1 );
 			for( int i = 0; i < count; i++ )
 			{
-				_exportation[i].Set( exporter.GetField( i ) );
+				var field = exporter.GetField( i );
+				_exportation[i].Set( field );
 			}
 
 			if( send )
@@ -196,8 +216,9 @@ public class JsonExporterDefinitionEditor : Editor
 					{
 						var exp = _exportation[i];
 						if( exp.Ignored ) continue;
-						var field = exporter.GetField( i );
-						var batchSize = field.BatchSize;
+						var f = exporter.GetField( i );
+						var field = f.Reference.Definition;
+						var batchSize = f.BatchSize;
 						var nextTrigger = sendNext;
 						var datas = new List<string>();
 						Debug.Log( $"batchSize: {batchSize}" );
@@ -208,7 +229,7 @@ public class JsonExporterDefinitionEditor : Editor
 							Debug.Log( $"elementsCount: {elementsCount}" );
 							for( int e = 0; e < elementsCount; e += batchSize )
 								datas.Add( $"{{ \"tableName\": \"{field.FieldName}\"," +
-											$" \"ignoreClear\": {((e!=0)?"true":"false")}," +
+											$" \"ignoreClear\": {( ( e != 0 ) ? "true" : "false" )}," +
 											$"\"data\": {field.GetMemberValueSerialized( e, batchSize )} }}" );
 						}
 						exp.SetState( EExportStep.Queue );
@@ -231,7 +252,7 @@ public class JsonExporterDefinitionEditor : Editor
 		{
 			var element = prop.GetArrayElementAtIndex( i );
 			bool valid = true;
-			if( onlyIfSelected.HasValue ) 
+			if( onlyIfSelected.HasValue )
 			{
 				var selected = element.FindPropertyRelative( "_selected" ).boolValue;
 				valid = ( onlyIfSelected.Value == selected );
@@ -323,7 +344,7 @@ public class JsonExporterDefinitionEditor : Editor
 				www.certificateHandler = new BypassCertificate();
 
 				var nextTrigger = new EventSlot();
-				currentTrigger.Register( () => 
+				currentTrigger.Register( () =>
 				{
 					var asyncOp = www.SendWebRequest();
 					_state[thisID] = EExportStep.Sent;
@@ -397,10 +418,10 @@ public class JsonExporterDefinitionEditor : Editor
 			return null;
 		}
 
-		public void Set( ExportField exportField )
+		public void Set( JsonExporterData.Element element )
 		{
-			_name = exportField.FieldName;
-			if( !exportField.Selected ) SetState( EExportStep.Ignored );
+			_name = element?.Reference?.Definition?.FieldName ?? "NULL";
+			if( !element.Selected || ( (!element.Reference?.Definition?.Selected) ?? true ) ) SetState( EExportStep.Ignored );
 			else if( _state.Contains( EExportStep.Ignored ) ) SetState( EExportStep.Idle );
 		}
 	}

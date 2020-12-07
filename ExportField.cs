@@ -18,7 +18,6 @@ public class ExportField
 	[SerializeField] int _inspectedElement;
 	[SerializeField] int _batchSize;
 	[SerializeField] bool _inspect;
-	// [SerializeField] EValidation _validation;
 	[SerializeField] List<ExportField> _fields;
 	[SerializeField] ScriptableObject _rootObject;
 	[SerializeField] string _inspection;
@@ -40,7 +39,10 @@ public class ExportField
 	public string MemberPath => _memberPath;
 
 	public int FieldsCount => _fields.Count;
-	public ExportField GetField( int index ) => index < _fields.Count ? _fields[index] : null;
+
+	public bool ShowBatchSize => _serialization == EFieldSerializationType.ToArray;
+
+	public ExportField GetField( int index ) => ( index < _fields.Count ) ? _fields[index] : null;
 
 	public bool CheckIfIsDirectValue()
 	{

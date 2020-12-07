@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections.Generic;
+using System;
 
 [CreateAssetMenu( fileName = "JsonExporterDefinition", menuName = "K10/Json Exporter Definition", order = 51 )]
 public class JsonExporterDefinition : ScriptableObject
