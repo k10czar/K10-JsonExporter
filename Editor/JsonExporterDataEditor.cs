@@ -221,12 +221,10 @@ public class JsonExporterDataEditor : Editor
 						var batchSize = f.BatchSize;
 						var nextTrigger = sendNext;
 						var datas = new List<string>();
-						Debug.Log( $"batchSize: {batchSize}" );
 						if( batchSize == 0 ) datas.Add( $"{{ \"tableName\": \"{field.FieldName}\", \"data\": {field.GetMemberValueSerialized()} }}" );
 						else
 						{
 							var elementsCount = field.GetCount();
-							Debug.Log( $"elementsCount: {elementsCount}" );
 							for( int e = 0; e < elementsCount; e += batchSize )
 								datas.Add( $"{{ \"tableName\": \"{field.FieldName}\"," +
 											$" \"ignoreClear\": {( ( e != 0 ) ? "true" : "false" )}," +
