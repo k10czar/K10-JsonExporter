@@ -20,6 +20,8 @@ public class JsonExporterDataEditor : Editor
 
 	static string AuthorPath => "/Temp/Author.name";
 
+
+
 	void OnEnable()
 	{
 		_author = Persistent<string>.At( AuthorPath );
@@ -42,7 +44,33 @@ public class JsonExporterDataEditor : Editor
 			SerializedObject so = new SerializedObject( data );
 			var p = so.FindProperty( "_definition" );
 			var edit = ExportFieldUtility.CalculateHeight( p, lineHeight );
-			return firstLine + edit;
+
+			var inspect = so.FindProperty( "_inspect" );
+			var inspectionSize = 0f;
+
+			if( !inspect.boolValue ) inspectionSize = lineHeight;
+			else
+			{
+				var minHeight = lineHeight;
+				var serialization = p.FindPropertyRelative( "_serialization" );
+				var serType = (EFieldSerializationType)serialization.enumValueIndex;
+				if( serType == EFieldSerializationType.ToArray ) minHeight = 3 * lineHeight;
+				var inspectedElement = so.FindProperty( "_inspectedElement" );
+				var lines = 1;
+
+				try
+				{
+					var oRef = data.Definition.RootObject;
+					var type = oRef.GetType();
+					var inspectionText = JsonFieldDefinitionEditor.GetInspectionText( data.Definition, type, oRef, serType, inspectedElement );
+					lines = inspectionText.Count( ( c ) => c == '\n' ) + 1;
+				}
+				catch { }
+
+				inspectionSize = Mathf.Max( ( lineHeight - 2.5f ) * lines, minHeight );
+			}
+
+			return firstLine + edit + inspectionSize;
 		};
 
 		_exportList.List.drawElementCallback = ( Rect rect, int index, bool isActive, bool isFocused ) =>
@@ -72,10 +100,61 @@ public class JsonExporterDataEditor : Editor
 
 			if( element.isExpanded && reference.objectReferenceValue != null )
 			{
-				rect = rect.CutTop( lineHeight + vSpacing );
 				SerializedObject so = new SerializedObject( data );
 				var p = so.FindProperty( "_definition" );
-				data.Definition.DrawElement( p, rect, lineHeight, null );
+				var edit = ExportFieldUtility.CalculateHeight( p, lineHeight );
+				rect = rect.CutTop( lineHeight + vSpacing );
+				data.Definition.DrawElement( p, rect.RequestTop( edit ), lineHeight, null );
+				var inspectionRect = rect.CutTop( edit );
+				var inspectionTextRect = inspectionRect.CutLeft( 32 );
+				var inspectionFieldsRect = inspectionRect.RequestLeft( 32 );
+
+				var inspect = so.FindProperty( "_inspect" );
+				var inspectChange = IconButton.Draw( inspectionFieldsRect.RequestTop( lineHeight ), inspect.boolValue ? "spy" : "visibleOff" );
+
+				var inspectionText = "";
+
+				if( inspect.boolValue && data.Definition != null )
+				{
+					var count = 0;
+					var serialization = p.FindPropertyRelative( "_serialization" );
+					var serType = (EFieldSerializationType)serialization.enumValueIndex;
+
+					var oRef = data.Definition.RootObject;
+					if( serType == EFieldSerializationType.ToArray )
+					{
+						var enu = oRef as System.Collections.IEnumerable;
+						if( enu != null ) foreach( var o in enu ) count++;
+					}
+
+					var inspectedElement = so.FindProperty( "_inspectedElement" );
+					if( count > 0 )
+					{
+						var fieldsModRect = inspectionFieldsRect.CutTop( lineHeight );
+						inspectedElement.intValue = EditorGUI.IntField( fieldsModRect.RequestTop( lineHeight ), inspectedElement.intValue );
+						bool canGoUp = inspectedElement.intValue < ( count - 1 );
+
+						var btsRect = fieldsModRect.CutTop( lineHeight ).RequestTop( lineHeight );
+						EditorGUI.BeginDisabledGroup( !canGoUp );
+						var up = IconButton.Draw( btsRect.VerticalSlice( 1, 2 ), "upTriangle", '▲', "", Color.white );
+						EditorGUI.EndDisabledGroup();
+						bool canGoDown = inspectedElement.intValue > 0;
+						EditorGUI.BeginDisabledGroup( !canGoDown );
+						var down = IconButton.Draw( btsRect.VerticalSlice( 0, 2 ), "downTriangle", '▼', "", Color.white );
+						EditorGUI.EndDisabledGroup();
+						if( up ) inspectedElement.intValue++;
+						if( down ) inspectedElement.intValue--;
+						inspectedElement.intValue = Mathf.Max( inspectedElement.intValue, 0 );
+					}
+					
+					var type = oRef.GetType();
+					inspectionText = JsonFieldDefinitionEditor.GetInspectionText( data.Definition, type, oRef, serType, inspectedElement );
+				}
+
+				if( inspectChange ) inspect.boolValue = !inspect.boolValue;
+
+				EditorGUI.TextArea( inspectionTextRect, inspectionText );
+
 				if( GUI.changed ) so.ApplyModifiedProperties();
 			}
 		};
@@ -105,9 +184,9 @@ public class JsonExporterDataEditor : Editor
 		for( int i = 0; i < _exportFields.arraySize; i++ )
 		{
 			var element = _exportFields.GetArrayElementAtIndex( i );
-			var selected = element.FindPropertyRelative( "_selected" ).boolValue;
+			var selected = element.isExpanded;
 			allSelected &= selected;
-			// var editMode = element.FindPropertyRelative( "_editMode" ).boolValue;
+			// var editMode = element.isExpanded;
 			// if( selected ) allSelectedAreOpen &= editMode;
 			// else allUnselectedAreClosed &= !editMode;
 		}
@@ -118,7 +197,7 @@ public class JsonExporterDataEditor : Editor
 			for( int i = 0; i < _exportFields.arraySize; i++ )
 			{
 				var element = _exportFields.GetArrayElementAtIndex( i );
-				element.FindPropertyRelative( "_selected" ).boolValue = !allSelected;
+				element.isExpanded = !allSelected;
 			}
 		}
 		if( GUILayout.Button( $"Invert Selection" ) )
@@ -256,7 +335,7 @@ public class JsonExporterDataEditor : Editor
 				valid = ( onlyIfSelected.Value == selected );
 			}
 			if( !valid ) continue;
-			element.FindPropertyRelative( "_editMode" ).boolValue = open;
+			element.isExpanded = open;
 			var fields = element.FindPropertyRelative( "_fields" );
 			ToggleElements( fields, open, onlyIfSelected );
 		}

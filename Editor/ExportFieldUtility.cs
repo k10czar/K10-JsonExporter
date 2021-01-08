@@ -162,7 +162,7 @@ public static class ExportFieldUtility
 		return "null";
 	}
 
-	static void AppendFields( ExportField export, object o, bool isDirectValue = false )
+	public static void AppendFields( this ExportField export, object o, bool isDirectValue = false )
 	{
 		var SB = export.SB;
 		if( !isDirectValue ) SB.Append( "{" );
@@ -256,12 +256,6 @@ public static class ExportFieldUtility
 			if( canMoveUp && IconButton.Draw( buttons.HorizontalSlice( 0, 2 ), "upTriangle", '▲' ) ) returnFlag.AsMaskWith( ElementAction.MoveUp );
 			if( canMoveDown && IconButton.Draw( buttons.HorizontalSlice( 1, 2 ), "downTriangle", '▼' ) ) returnFlag.AsMaskWith( ElementAction.MoveDown );
 		}
-
-		bool canInpect = oRef != null;
-
-		var inspect = element.FindPropertyRelative( "_inspect" );
-		var inspectedElement = element.FindPropertyRelative( "_inspectedElement" );
-		if( canInpect ) InspectionFields( oRef, serType, ref firstLine, inspect, inspectedElement );
 
 		var selected = element.FindPropertyRelative( "_selected" );
 		var fields = element.FindPropertyRelative( "_fields" );
@@ -370,7 +364,7 @@ public static class ExportFieldUtility
 			{
 				qType = iniQType;
 				var f = fields.GetArrayElementAtIndex( i );
-				var height = CalculateHeight( f, lineHeight, false );
+				var height = CalculateHeight( f, lineHeight );
 				var lineRect = rect.GetLineTop( height, 0 );
 				if( serType == EFieldSerializationType.ToArray && qType != null )
 				{
@@ -407,103 +401,21 @@ public static class ExportFieldUtility
 			foreach( var idToRemove in toRemove ) fields.DeleteArrayElementAtIndex( idToRemove );
 		}
 
-		if( canInpect && oRef != null )
-		{
-			try {
-				export.InspectionBox( element, rect, type, oRef, serType, inspect.boolValue, inspectedElement );
-			} catch { }
-		}
-
 		if( type == null ) GuiColorManager.Revert();
 
 		return (ElementAction)returnFlag;
 	}
 
-	private static void InspectionFields( object oRef, EFieldSerializationType serType, ref Rect firstLine, SerializedProperty inspect, SerializedProperty inspectedElement )
-	{
-		var inspectChange = IconButton.Draw( firstLine.GetColumnRight( 16, SPACING ), inspect.boolValue ? "spy" : "visibleOff" );
-		if( inspectChange )
-		{
-			inspect.boolValue = !inspect.boolValue;
-		}
-
-		if( inspect.boolValue )
-		{
-			var count = 0;
-			if( serType == EFieldSerializationType.ToArray )
-			{
-				var enu = oRef as System.Collections.IEnumerable;
-				if( enu != null ) foreach( var o in enu ) count++;
-			}
-
-			if( count > 0 )
-			{
-				var value = inspectedElement.intValue;
-				value = EditorGUI.IntField( firstLine.GetColumnRight( 32, SPACING ), value );
-				var buttons = firstLine.GetColumnRight( firstLine.height / 2, SPACING );
-				bool canGoUp = value < ( count - 1 );
-				EditorGUI.BeginDisabledGroup( !canGoUp );
-				var up = IconButton.Draw( buttons.HorizontalSlice( 0, 2 ), "upTriangle", '▲', "", Color.white );
-				EditorGUI.EndDisabledGroup();
-				bool canGoDown = value > 0;
-				EditorGUI.BeginDisabledGroup( !canGoDown );
-				var down = IconButton.Draw( buttons.HorizontalSlice( 1, 2 ), "downTriangle", '▼', "", Color.white );
-				EditorGUI.EndDisabledGroup();
-				if( up ) value++;
-				if( down ) value--;
-				//value = Mathf.Clamp( value, 0, count - 1 );
-				value = Mathf.Max(value, 0);
-				inspectedElement.intValue = value;
-			}
-		}
-	}
-
-	private static void InspectionBox( this ExportField export, SerializedProperty element, Rect rect, Type type, object oRef, EFieldSerializationType serType, bool inspect, SerializedProperty inspectedElement )
-	{
-		if( inspect && oRef != null )
-		{
-			// EditorGUI.BeginDisabledGroup( true );
-			var inspection = element.FindPropertyRelative( "_inspection" );
-			if( serType == EFieldSerializationType.ToArray )
-			{
-				object elementObj = null;
-				var id = inspectedElement.intValue;
-				if( oRef is IHashedSOCollection hcol ) elementObj = hcol.GetElementBase( id );
-				else if( oRef is System.Collections.IList list ) elementObj = list[id];
-				else if( oRef is System.Array array ) elementObj = array.GetValue( id );
-				if( elementObj != null )
-				{
-					var SB = export.SB;
-					SB.Clear();
-					SB.Append( $"{export.FieldName}[{id}]: " );
-					AppendFields( export, elementObj, export.CheckIfIsDirectValue() );
-					inspection.stringValue = SB.ToString().FormatAsJson( "    " );
-					SB.Clear();
-				}
-				else inspection.stringValue = "null";
-			}
-			else inspection.stringValue = GetFieldDefinition( oRef, type, export ).FormatAsJson( "    " );
-			EditorGUI.TextArea( rect, inspection.stringValue );
-			// EditorGUI.EndDisabledGroup();
-		}
-	}
-
-	public static float CalculateHeight( SerializedProperty element, float lineHeight, bool canInspect = true )
+	public static float CalculateHeight( SerializedProperty element, float lineHeight )
 	{
 		var size = lineHeight;
-		var inspect = element.FindPropertyRelative( "_inspect" );
-		if( inspect.boolValue && canInspect )
-		{
-			var inspection = element.FindPropertyRelative( "_inspection" );
-			size += ( lineHeight - 2.5f ) * ( inspection.stringValue.Count( ( c ) => c == '\n' ) + 1 );
-		}
 		if( element.isExpanded )
 		{
 			var serialization = element.FindPropertyRelative( "_serialization" );
 			if( IsRecurscive( (EFieldSerializationType)serialization.enumValueIndex ) )
 			{
 				var fields = element.FindPropertyRelative( "_fields" );
-				for( int i = 0; i < fields.arraySize; i++ ) size += CalculateHeight( fields.GetArrayElementAtIndex( i ), lineHeight, false );
+				for( int i = 0; i < fields.arraySize; i++ ) size += CalculateHeight( fields.GetArrayElementAtIndex( i ), lineHeight );
 			}
 		}
 		return size;

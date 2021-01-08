@@ -13,14 +13,10 @@ public class ExportField
 	[SerializeField] string _memberPath;
 	[SerializeField] EFieldSerializationType _serialization;
 	[SerializeField] string _format = "{0}";
-	[SerializeField] bool _editMode;
 	[SerializeField] bool _selected;
-	[SerializeField] int _inspectedElement;
 	[SerializeField] int _batchSize;
-	[SerializeField] bool _inspect;
 	[SerializeField] List<ExportField> _fields;
 	[SerializeField] ScriptableObject _rootObject;
-	[SerializeField] string _inspection;
 
 	#if UNITY_EDITOR
 	public readonly StringBuilder SB = new StringBuilder();
@@ -29,11 +25,7 @@ public class ExportField
 	public string FieldName => _fieldName;
 	public bool Selected => _selected;
 	public ScriptableObject RootObject => _rootObject;
-	public string Inspection => _inspection;
-	public bool Inspect => _inspect;
-	public int InspectedElement => _inspectedElement;
 	public int BatchSize => _serialization == EFieldSerializationType.ToArray ? _batchSize : 0;
-	public bool EditMode => _editMode;
 	public string Format => _format;
 	public EFieldSerializationType Serialization => _serialization;
 	public string MemberPath => _memberPath;
