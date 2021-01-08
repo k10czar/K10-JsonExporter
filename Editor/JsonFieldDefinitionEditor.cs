@@ -29,6 +29,8 @@ public class JsonFieldDefinitionEditor : Editor
 
 		var serialization = _definition.FindPropertyRelative( "_serialization" );
 		var serType = (EFieldSerializationType)serialization.enumValueIndex;
+		GUILayout.EndVertical();
+		
 		GUILayout.BeginHorizontal( GUI.skin.box );
 
 		var oRef = data.Definition.RootObject;
@@ -39,7 +41,7 @@ public class JsonFieldDefinitionEditor : Editor
 		// var oRef = rootObject.objectReferenceValue;
 		var inspectionText = "";
 
-		if( _inspectedElement.boolValue && oRef != null )
+		if( _inspect.boolValue && oRef != null )
 		{
 			try
 			{
@@ -49,21 +51,18 @@ public class JsonFieldDefinitionEditor : Editor
 			catch { }
 		}
 
-		EditorGUILayout.TextArea( inspectionText );
+		EditorGUILayout.TextArea( inspectionText, GUILayout.ExpandHeight( true ) );
 		GUILayout.EndHorizontal();
 
-		GUILayout.EndVertical();
 
 		serializedObject.ApplyModifiedProperties();
 	}
 
 	private static void InspectionFields( object oRef, EFieldSerializationType serType, SerializedProperty inspect, SerializedProperty inspectedElement )
 	{
+		GUILayout.BeginVertical( GUILayout.Width( 32 ) );
 		var inspectChange = IconButton.Layout( 16, inspect.boolValue ? "spy" : "visibleOff" );
-		if( inspectChange )
-		{
-			inspect.boolValue = !inspect.boolValue;
-		}
+		if( inspectChange ) inspect.boolValue = !inspect.boolValue;
 
 		if( inspect.boolValue )
 		{
@@ -93,6 +92,7 @@ public class JsonFieldDefinitionEditor : Editor
 				inspectedElement.intValue = value;
 			}
 		}
+		GUILayout.EndVertical();
 	}
 
 	public static string GetInspectionText( ExportField export, Type type, object oRef, EFieldSerializationType serType, SerializedProperty inspectedElement )
