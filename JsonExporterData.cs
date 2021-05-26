@@ -5,6 +5,7 @@ using System;
 [CreateAssetMenu( fileName = "JsonExporterData", menuName = "K10/Json Exporter Data ", order = 51 )]
 public class JsonExporterData : ScriptableObject
 {
+	public static Action OnPreExport;
 	[SerializeField] string _url = "";
 	[SerializeField] List<Element> _exportFields = new List<Element>();
 
