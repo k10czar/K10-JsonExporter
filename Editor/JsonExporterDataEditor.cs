@@ -289,6 +289,8 @@ public class JsonExporterDataEditor : Editor
 			{
 				if( _exportation.Count > 0 )
 				{
+					JsonExporterData.OnPreExport?.Invoke();
+
 					var url = _urlField.stringValue;
 					IEventTrigger sendNext = new CallOnce( SetDataDirty );
 					for( int i = _exportation.Count - 1; i >= 0; i-- )
