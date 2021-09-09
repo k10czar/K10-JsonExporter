@@ -253,8 +253,8 @@ public static class ExportFieldUtility
 		if( canMoveUp || canMoveDown )
 		{
 			var buttons = firstLine.GetColumnRight( firstLine.height / 2 );
-			if( canMoveUp && IconButton.Draw( buttons.HorizontalSlice( 0, 2 ), "upTriangle", '▲' ) ) returnFlag.AsMaskWith( ElementAction.MoveUp );
-			if( canMoveDown && IconButton.Draw( buttons.HorizontalSlice( 1, 2 ), "downTriangle", '▼' ) ) returnFlag.AsMaskWith( ElementAction.MoveDown );
+			if( canMoveUp && IconButton.Draw( buttons.HorizontalSlice( 0, 2 ), "upTriangle", '▲' ) ) returnFlag.AsMaskRefWith( ElementAction.MoveUp );
+			if( canMoveDown && IconButton.Draw( buttons.HorizontalSlice( 1, 2 ), "downTriangle", '▼' ) ) returnFlag.AsMaskRefWith( ElementAction.MoveDown );
 		}
 
 		var selected = element.FindPropertyRelative( "_selected" );
@@ -285,7 +285,7 @@ public static class ExportFieldUtility
 		if( validActions.AsMaskContains( ElementAction.Remove ) )
 		{
 			fieldNameRect = fieldNameRect.CutRight( 16 );
-			if( IconButton.Draw( fieldNameRect.RequestRight( 16 ).MoveRight( 16 ), "minus" ) ) returnFlag.AsMaskWith( ElementAction.Remove );
+			if( IconButton.Draw( fieldNameRect.RequestRight( 16 ).MoveRight( 16 ), "minus" ) ) returnFlag.AsMaskRefWith( ElementAction.Remove );
 		}
 		fieldName.stringValue = EditorGUI.TextField( fieldNameRect, fieldName.stringValue );
 
