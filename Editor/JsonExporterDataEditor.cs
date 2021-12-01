@@ -235,7 +235,7 @@ public class JsonExporterDataEditor : Editor
 		bool canSend = !exporting && IsValidAuthorName( authorName );
 		EditorGUILayout.PropertyField( _urlField );
 		EditorGUI.BeginDisabledGroup( !canSend );
-		var send = GUILayout.Button( "Export", K10GuiStyles.bigbuttonStyle ) && canSend;
+		var send = GUILayout.Button( $"Export to {EditorPrefs.GetString( "GamesparksCurrentInstanceName" )}", K10GuiStyles.bigbuttonStyle ) && canSend;
 		EditorGUI.EndDisabledGroup();
 		GUILayout.EndVertical();
 		if( !authorIsValid ) GuiColorManager.Revert();
