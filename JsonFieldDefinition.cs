@@ -11,4 +11,9 @@ public class JsonFieldDefinition : ScriptableObject
 	public ExportField Definition => _definition;
 
 	public void SetData( ExportField f ) { _definition = f; }
+
+	public void SortFieldsByName()
+    {
+		_definition.SortFieldsByName();
+    }
 }

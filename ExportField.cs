@@ -7,7 +7,7 @@ using System;
 public enum EFieldSerializationType { ToString, ToJson, ToArray, Inherited, BoolToNumber, InvertedBool, ToStringToLower, AsBitMaskToValues }
 
 [System.Serializable]
-public class ExportField
+public class ExportField : IComparable
 {
 	[SerializeField] string _fieldName;
 	[SerializeField] string _memberPath;
@@ -35,6 +35,11 @@ public class ExportField
 	public bool ShowBatchSize => _serialization == EFieldSerializationType.ToArray;
 
 	public ExportField GetField( int index ) => ( index < _fields.Count ) ? _fields[index] : null;
+	public void SortFieldsByName()
+    {
+		_fields.Sort();
+		_fields.ForEach(field => field.SortFieldsByName());
+    }
 
 	public bool CheckIfIsDirectValue()
 	{
@@ -50,4 +55,7 @@ public class ExportField
 		}
 		return true;
 	}
+
+    public int CompareTo(object other) 
+		=> _fieldName.ToLower().CompareTo( (other as ExportField).FieldName.ToLower() ); 
 }
