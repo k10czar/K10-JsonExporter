@@ -49,5 +49,10 @@ public class JsonExporterData : ScriptableObject
 			_batch = batch;
 			_reference = data;
 		}
+
+		public void SortFieldsByName()
+        {
+			_reference.Definition.SortFieldsByName();
+        }
 	}
 }
