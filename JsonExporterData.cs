@@ -7,18 +7,13 @@ public class JsonExporterData : ScriptableObject
 {
 	public static Action OnPreExport;
 
-	[SerializeField] string _url = "";
+	[SerializeField] string _targetTeamName = "";
 	[SerializeField] List<Element> _exportFields = new List<Element>();
 
 	public int FieldsCount => _exportFields.Count;
 	public Element GetField( int index ) => _exportFields[index];
 
-	public string Url { get => _url; set => _url = value; }
-
-	public void SetURL( string url )
-	{
-		_url = url;
-	}
+	public string TargetTeamName { get => _targetTeamName; set => _targetTeamName = value; }
 
 	public void SetFields( List<JsonFieldDefinition> fields )
 	{
