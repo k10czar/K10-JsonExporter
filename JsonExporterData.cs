@@ -7,13 +7,13 @@ public class JsonExporterData : ScriptableObject
 {
 	public static Action OnPreExport;
 
-	[SerializeField] string _targetTeamName = "";
+	[SerializeField] string _targetBranch = "";
 	[SerializeField] List<Element> _exportFields = new List<Element>();
 
 	public int FieldsCount => _exportFields.Count;
 	public Element GetField( int index ) => _exportFields[index];
 
-	public string TargetTeamName { get => _targetTeamName; set => _targetTeamName = value; }
+	public string TargetBranch { get => _targetBranch; set => _targetBranch = value; }
 
 	public void SetFields( List<JsonFieldDefinition> fields )
 	{
